@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seu Carrinho de Compras</title>
+    <meta name="author" content="Onivaldo Miquelino">          
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style> 
+        body { font-family: ui-sans-serif, system-ui; } 
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+
+    <div class="w-full max-w-4xl mx-auto">
+        
+        <header class="py-4 border-b mb-8 flex justify-between items-center">
+            <a href="index.html" class="text-indigo-600 hover:underline">← Voltar ao Catálogo</a>
+            <h1 class="text-3xl font-bold text-indigo-700">Seu Carrinho</h1>
+        </header>
+
+        <div id="cart-content" class="bg-white p-6 rounded-lg shadow-md">
+            <p id="empty-cart-message" class="text-center text-gray-500 hidden">Seu carrinho está vazio.</p>
+        </div>
+        
+        <div id="cart-summary" class="mt-8 bg-white p-6 rounded-lg shadow-md hidden">
+            <div class="flex justify-between items-center border-t pt-4 mt-4">
+                <p class="text-xl font-semibold">Total:</p>
+                <p id="cart-total" class="text-2xl font-bold text-green-600"></p>
+            </div>
+            
+            <div class="mt-6 space-y-3">
+                <button id="checkout-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition">
+                    Finalizar Compra
+                </button>
+                <button id="clear-cart-btn" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg transition">
+                    Limpar Carrinho
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8001/src/api.php'; 
+        const cartContent = document.getElementById('cart-content');
+        const emptyCartMessage = document.getElementById('empty-cart-message');
+        const cartSummary = document.getElementById('cart-summary');
+        const cartTotalDisplay = document.getElementById('cart-total');
+        const clearCartBtn = document.getElementById('clear-cart-btn');
+
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
+        };
+
+        // --- Funções de Manipulação do Carrinho ---
+
+        /**
+         * Faz a requisição de atualização/remoção e recarrega o carrinho.
+         */
+        async function updateCart(method, data = null, urlParams = '') {
+            try {
+                const response = await fetch(API_URL + urlParams, {
+                    method: method,
+                    headers: data ? { 'Content-Type': 'application/json' } : {},
+                    body: data ? JSON.stringify(data) : null
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderCart(result.data);
+                } else {
+                    alert(`❌ Erro na operação: ${result.error}`);
+                    console.error("Erro do servidor:", result.error);
+                }
+
+            } catch (error) {
+                alert("❌ Erro de rede. Verifique o console.");
+                console.error("Erro de rede/JSON:", error);
+            }
+        }
+        
+        /**
+         * Event handler para mudança de quantidade.
+         */
+        window.handleQuantityChange = (productId, inputElement) => {
+            const newQuantity = parseInt(inputElement.value);
+            if (isNaN(newQuantity) || newQuantity < 0) return;
+
+            // Se a quantidade for zero, o PHP irá remover o item
+            updateCart('PUT', { product_id: productId, quantity: newQuantity });
+        };
+
+        /**
+         * Event handler para remoção de item.
+         */
+        window.removeItem = (productId) => {
+            if (confirm(`Tem certeza que deseja remover este item (ID ${productId})?`)) {
+                updateCart('DELETE', null, `?id=${productId}`);
+            }
+        };
+        
+        /**
+         * Limpa o carrinho.
+         */
+        clearCartBtn.addEventListener('click', () => {
+             if (confirm("Tem certeza que deseja LIMPAR o carrinho?")) {
+                updateCart('DELETE', null, `?action=clear`);
+            }
+        });
+
+        // --- Renderização da Interface ---
+
+        /**
+         * Renderiza o estado atual do carrinho na página.
+         */
+        function renderCart(cartData) {
+            const items = cartData.items;
+            const total = cartData.total;
+            
+            if (items.length === 0) {
+                emptyCartMessage.classList.remove('hidden');
+                cartSummary.classList.add('hidden');
+                cartContent.innerHTML = '';
+                return;
+            }
+
+            emptyCartMessage.classList.add('hidden');
+            cartSummary.classList.remove('hidden');
+            cartTotalDisplay.textContent = formatCurrency(total);
+            
+            const itemsHtml = items.map(item => `
+                <div class="flex items-center space-x-4 py-4 border-b last:border-b-0">
+                    <img src="${item.image}" alt="${item.name}" class="w-16 h-16 object-cover rounded">
+                    
+                    <div class="flex-grow">
+                        <p class="font-semibold text-gray-800">${item.name}</p>
+                        <p class="text-sm text-gray-600">${formatCurrency(item.price)} cada</p>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        <input type="number" min="0" value="${item.quantity}" 
+                               onchange="handleQuantityChange(${item.id}, this)"
+                               class="w-16 text-center border rounded-lg p-1">
+                        
+                        <p class="font-semibold w-24 text-right">${formatCurrency(item.price * item.quantity)}</p>
+                        
+                        <button onclick="removeItem(${item.id})" class="text-red-500 hover:text-red-700 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            cartContent.innerHTML = itemsHtml;
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            // Carrega o estado atual do carrinho na inicialização
+            updateCart('GET'); 
+        });
+    </script>
+</body>
+</html>
+    

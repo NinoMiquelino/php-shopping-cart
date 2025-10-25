@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de Produtos - Carrinho Persistente</title>
+    <meta name="author" content="Onivaldo Miquelino">          
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style> 
+        body { font-family: ui-sans-serif, system-ui; } 
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+
+    <div class="w-full max-w-6xl mx-auto">
+        
+        <header class="flex justify-between items-center py-4 border-b mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700">Loja Tech</h1>
+            <a href="cart.html" class="relative bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full transition">
+                🛒 Carrinho (<span id="cart-item-count">0</span>)
+            </a>
+        </header>
+
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6">Nossos Produtos</h2>
+        <div id="product-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <p class="col-span-4 text-center text-gray-500" id="loading-message">Carregando catálogo...</p>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8001/src/api.php'; 
+        const productList = document.getElementById('product-list');
+        const cartItemCount = document.getElementById('cart-item-count');
+        const loadingMessage = document.getElementById('loading-message');
+
+        // Função utilitária para formatação de moeda
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
+        };
+
+        // --- Interação com a API (AJAX) ---
+
+        /**
+         * Atualiza o contador de itens no header.
+         */
+        async function updateCartCount() {
+            try {
+                const response = await fetch(API_URL); // GET simples retorna o resumo
+                const result = await response.json();
+                if (result.success) {
+                    cartItemCount.textContent = result.data.item_count;
+                }
+            } catch (error) {
+                console.error("Erro ao carregar o resumo do carrinho:", error);
+            }
+        }
+
+        /**
+         * Adiciona um item ao carrinho via AJAX.
+         */
+        async function addToCart(productId) {
+            
+            // Simula um estado de carregamento
+            const button = document.querySelector(`#add-btn-${productId}`);
+            button.disabled = true;
+            button.textContent = 'Adicionando...';
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_id: productId, quantity: 1 })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Feedback de sucesso
+                    alert(`✅ Item ID ${productId} adicionado ao carrinho! Total de itens: ${result.data.item_count}`);
+                    updateCartCount();
+                } else {
+                    alert(`❌ Erro ao adicionar: ${result.error}`);
+                    console.error("Erro do servidor:", result.error);
+                }
+
+            } catch (error) {
+                alert("❌ Erro de rede. Verifique o console.");
+                console.error("Erro de rede/JSON:", error);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Adicionar ao Carrinho';
+            }
+        }
+        
+        /**
+         * Carrega e renderiza o catálogo de produtos.
+         */
+        async function loadCatalog() {
+            try {
+                const response = await fetch(`${API_URL}?action=catalog`);
+                const result = await response.json();
+                
+                loadingMessage.classList.add('hidden');
+
+                if (result.success && result.data.length > 0) {
+                    productList.innerHTML = result.data.map(product => `
+                        <div class="bg-white rounded-lg shadow-md overflow-hidden flex flex-col items-center p-4">
+                            <img src="${product.image}" alt="${product.name}" class="w-full h-32 object-cover mb-4 rounded">
+                            <h3 class="text-lg font-semibold text-gray-800 text-center mb-2">${product.name}</h3>
+                            <p class="text-xl font-bold text-green-600 mb-4">${formatCurrency(product.price)}</p>
+                            <button id="add-btn-${product.id}" onclick="addToCart(${product.id})" 
+                                    class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg transition">
+                                Adicionar ao Carrinho
+                            </button>
+                        </div>
+                    `).join('');
+                } else {
+                    productList.innerHTML = '<p class="col-span-4 text-center text-red-500">Catálogo vazio ou erro ao carregar.</p>';
+                }
+
+            } catch (error) {
+                 loadingMessage.classList.remove('hidden');
+                 loadingMessage.textContent = 'Erro grave ao conectar com a API PHP.';
+                 console.error("Erro fatal ao carregar o catálogo:", error);
+            }
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCatalog();
+            updateCartCount(); // Carrega o estado inicial do carrinho
+        });
+    </script>
+</body>
+</html>
+    
